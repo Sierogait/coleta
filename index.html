@@ -52,6 +52,9 @@ button:disabled{opacity:.5}
 .grav audio,.grav video{width:100%;margin-top:6px}
 .grav .lin{display:flex;gap:8px;align-items:center;font-size:14px}.grav .lin input{width:20px;height:20px}
 .grav button{width:auto;padding:6px 10px;font-size:13px;margin-top:6px}
+.pasta{border:1.5px solid var(--accent);border-radius:12px;padding:10px;margin-top:10px}
+.pasta>.cab{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.pasta>.cab b{font-size:16px}.pasta>.cab button{width:auto;margin:0;padding:7px 10px;font-size:13px}
 button.gravando{background:#c0392b}
 footer{color:var(--mute);font-size:12px;text-align:center;margin-top:16px}
 </style>
@@ -116,7 +119,8 @@ footer{color:var(--mute);font-size:12px;text-align:center;margin-top:16px}
   <h2><span class="n">🎙</span>Gravar áudio ou vídeo</h2>
   <p>Use para registrar um áudio que está tocando em outro aparelho. O som é gravado <b>sem filtros</b> (sem redução de ruído nem ajuste automático de volume), em qualidade máxima.</p>
   <div class="modos"><label><input type="radio" name="gmodo" value="audio" checked> Só áudio</label><label><input type="radio" name="gmodo" value="video"> Vídeo com câmera <small>(mostre o outro aparelho: contato, número e o áudio tocando)</small></label></div>
-  <div class="campo">Do que se trata (ex.: áudio de Fulano recebido no WhatsApp em 10/10)<input type="text" id="gNota"></div>
+  <div class="campo">Pasta (ex.: Conversa com Camila)<input type="text" id="gPasta" list="gPastas" placeholder="nome da pasta onde guardar"><datalist id="gPastas"></datalist></div>
+  <div class="campo">Nome desta gravação (ex.: Áudio de Camila de 10/10, 14h)<input type="text" id="gNota" placeholder="se deixar em branco: Pasta + número"></div>
   <label class="chk"><input type="checkbox" id="gGeo" checked><span>Registrar a localização (GPS) durante a gravação</span></label>
   <label class="chk" id="gCarimboL"><input type="checkbox" id="gCarimbo" checked><span>No vídeo, gravar data, hora e local sobre a imagem</span></label>
   <canvas id="gTela" hidden></canvas>
@@ -133,11 +137,11 @@ footer{color:var(--mute);font-size:12px;text-align:center;margin-top:16px}
   <h2><span class="n">📚</span>Biblioteca de gravações</h2>
   <p>As gravações ficam neste celular. Exporte e envie ao escritório; depois de confirmado o recebimento, você pode apagá-las daqui.</p>
   <div id="bLista"></div>
-  <button id="bExportar">Exportar biblioteca (.zip)</button>
+  <button id="bExportar">Exportar marcadas (.zip)</button>
   <div class="aviso" id="bAviso"></div>
 </section>
 </div>
-<footer>VisuWhats · Coleta 1.2 · nenhum dado é enviado a servidores do escritório</footer>
+<footer>VisuWhats · Coleta 1.3 · nenhum dado é enviado a servidores do escritório</footer>
 
 <script>
 "use strict";

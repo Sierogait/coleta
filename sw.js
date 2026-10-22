@@ -1,5 +1,5 @@
 // Service worker da Coleta: funciona offline e recebe arquivos pelo "Compartilhar" do Android.
-const CACHE = 'coleta-v5';
+const CACHE = 'coleta-v6';
 const ARQS = ['./', './index.html', './gravador.js', './hash.js', './verificar.html', './manifest.webmanifest', './icone-192.png', './icone-512.png', './icone-180.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ARQS))); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k))))); self.clients.claim(); });

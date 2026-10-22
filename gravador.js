@@ -188,12 +188,15 @@ async function parar() {
   $('#gPrev').hidden = true; $('#gPrev').srcObject = null; $('#gPrev').style.cssText = ''; $('#gTela').hidden = true;
   const local = resumoLocal(g.L);
   const relogio = await Promise.race([g.relogioP, new Promise(ok => setTimeout(() => ok({ conferido: false, motivo: 'servidor de hora não respondeu a tempo' }), 4000))]);
-  const nota = $('#gNota').value.trim();
+  const pasta = ($('#gPasta').value.trim() || 'Sem pasta');
+  try { localStorage.setItem('coleta_pasta', pasta); } catch (e) {}
+  const todas = (await bd('readonly', st => st.getAll())) || [];
+  const nota = $('#gNota').value.trim() || `${pasta} · gravação ${todas.filter(x => (x.comp.pasta || 'Sem pasta') === pasta).length + 1}`;
   const off = -g.inicio.getTimezoneOffset();
   const id = fim.toISOString().replace(/[-:]/g, '').replace('T', '_').slice(0, 15) + '_' + Math.random().toString(36).slice(2, 6);
   const locTxt = local.obtida ? `${local.inicio.lat}, ${local.inicio.lon} (±${local.inicio.precisao_m} m)` : 'localização não obtida';
   const arquivos = [{ nome: 'audio.wav', papel: 'audio', blob: wav(g.partes, taxa, {
-    INAM: nota || 'Gravação VisuWhats', ICRD: g.inicio.toISOString(), ISFT: 'VisuWhats Coleta 1.2',
+    INAM: nota || 'Gravação VisuWhats', ICRD: g.inicio.toISOString(), ISFT: 'VisuWhats Coleta 1.3', IPRD: pasta,
     ICMT: `Início ${g.inicio.toISOString()} UTC; fuso ${Intl.DateTimeFormat().resolvedOptions().timeZone}; local ${locTxt}` }) }];
   if (g.pedacos.length) {
     const ext = g.tv.includes('mp4') ? 'mp4' : 'webm';
@@ -203,7 +206,7 @@ async function parar() {
   for (const a of arquivos) lista.push({ nome: a.nome, papel: a.papel, bytes: a.blob.size, tipo: a.blob.type, sha256: await hashArquivo(a.blob) });
   const est = g.estat();
   const comp = {
-    tipo: 'gravacao VisuWhats', versao: 'Coleta 1.2', id, modo: g.modo, nota,
+    tipo: 'gravacao VisuWhats', versao: 'Coleta 1.3', id, modo: g.modo, nota, pasta,
     inicio_local: g.inicio.toString(), utc_offset_min: off, localizacao: local, relogio_do_aparelho: relogio,
     metadados_nos_arquivos: { audio_wav: 'bloco LIST/INFO com data de criação (ICRD), programa (ISFT), descrição (INAM) e data/fuso/local (ICMT)',
                                video: g.modo === 'video' ? (g.carimboNoVideo ? 'data, hora e local gravados sobre a imagem, atualizados a cada quadro' : 'sem carimbo na imagem') : null },
@@ -222,26 +225,46 @@ async function parar() {
     arquivos: arquivos.map(a => ({ nome: a.nome, papel: a.papel, blob: a.blob })), exportado: false }));
   $('#gBotao').disabled = false; $('#gBotao').textContent = '● Começar a gravar'; $('#gBotao').classList.remove('gravando');
   document.querySelectorAll('input[name=gmodo]').forEach(r => r.disabled = false);
-  $('#gNivel').style.width = '0'; $('#gNota').value = ''; $('#gLocal').textContent = '';
+  $('#gNivel').style.width = '0'; $('#gNota').value = ''; $('#gLocal').textContent = ''; preencherPastas();
   $('#gAviso').innerHTML = `<span class="ok">Gravação salva na biblioteca (${fmtTempo(comp.duracao_s)}).</span> ${local.obtida ? '📍 ' + locTxt + '. ' : ''}${relogio.conferido ? 'Relógio do celular conferido (diferença ' + relogio.diferenca_s + ' s). ' : ''} SHA-256 do áudio: <span class="h">${lista[0].sha256}</span>${ots ? '<br>Carimbo do tempo registrado.' : '<br>Sem internet: carimbo do tempo não registrado; o escritório registra ao receber.'}`;
 }
 $('#gBotao').onclick = () => G ? parar() : comecar();
 
 // ---------------- biblioteca
+async function preencherPastas() {
+  const itens = (await bd('readonly', st => st.getAll())) || [];
+  const dl = $('#gPastas'); dl.textContent = '';
+  [...new Set(itens.map(g => g.comp.pasta || 'Sem pasta'))].sort().forEach(p => { const o = document.createElement('option'); o.value = p; dl.append(o); });
+  if (!$('#gPasta').value) { try { $('#gPasta').value = localStorage.getItem('coleta_pasta') || ''; } catch (e) {} }
+}
+preencherPastas();
 async function desenhaBiblioteca() {
   const l = $('#bLista'); l.textContent = '';
   const itens = (await bd('readonly', st => st.getAll())) || [];
-  itens.sort((a, b) => b.criado.localeCompare(a.criado));
+  itens.sort((a, b) => a.criado.localeCompare(b.criado));
   if (!itens.length) { l.innerHTML = '<p>Nenhuma gravação ainda.</p>'; return; }
-  itens.forEach(g => {
-    const d = document.createElement('div'); d.className = 'grav';
-    const c = g.comp;
-    d.innerHTML = `<div class="lin"><input type="checkbox" data-id="${g.id}" ${g.exportado ? '' : 'checked'}><b>${c.nota ? c.nota.replace(/</g, '&lt;') : 'Gravação sem descrição'}</b></div>
-      <div class="aviso">${new Date(c.inicio_utc).toLocaleString('pt-BR')} · ${fmtTempo(c.duracao_s)} · ${c.modo === 'video' ? 'vídeo + áudio' : 'áudio'}${g.exportado ? ' · <span class="ok">exportada</span>' : ''}${g.ots ? '' : ' · sem carimbo'}</div>`;
-    g.arquivos.forEach(a => { const m = document.createElement(a.papel === 'video' ? 'video' : 'audio'); m.controls = true; m.preload = 'none'; m.playsInline = true; m.src = URL.createObjectURL(a.blob); d.append(m); });
-    const ap = document.createElement('button'); ap.className = 'sec'; ap.textContent = 'Apagar do celular';
-    ap.onclick = async () => { if (!confirm(g.exportado ? 'Apagar esta gravação do celular?' : 'Esta gravação ainda NÃO foi exportada. Apagar mesmo assim?')) return; await bd('readwrite', st => st.delete(g.id)); desenhaBiblioteca(); };
-    d.append(ap); l.append(d);
+  const grupos = {};
+  itens.forEach(g => (grupos[g.comp.pasta || 'Sem pasta'] = grupos[g.comp.pasta || 'Sem pasta'] || []).push(g));
+  Object.keys(grupos).sort().forEach(nome => {
+    const lista = grupos[nome];
+    const box = document.createElement('div'); box.className = 'pasta';
+    const cab = document.createElement('div'); cab.className = 'cab';
+    const tot = lista.reduce((a, g) => a + (g.comp.duracao_s || 0), 0);
+    cab.innerHTML = `<div><b>📁 ${nome.replace(/</g, '&lt;')}</b><div class="aviso">${lista.length} gravação(ões) · ${fmtTempo(tot)}</div></div>`;
+    const be = document.createElement('button'); be.textContent = 'Exportar pasta';
+    be.onclick = () => exportar(lista.map(g => g.id), nome);
+    cab.append(be); box.append(cab);
+    lista.forEach(g => {
+      const d = document.createElement('div'); d.className = 'grav';
+      const c = g.comp;
+      d.innerHTML = `<div class="lin"><input type="checkbox" data-id="${g.id}" ${g.exportado ? '' : 'checked'}><b>${(c.nota || 'Gravação').replace(/</g, '&lt;')}</b></div>
+        <div class="aviso">${new Date(c.inicio_utc).toLocaleString('pt-BR')} · ${fmtTempo(c.duracao_s)} · ${c.modo === 'video' ? 'vídeo + áudio' : 'áudio'}${g.exportado ? ' · <span class="ok">exportada</span>' : ''}${g.ots ? '' : ' · sem carimbo'}</div>`;
+      g.arquivos.forEach(a => { const m = document.createElement(a.papel === 'video' ? 'video' : 'audio'); m.controls = true; m.preload = 'none'; m.playsInline = true; m.src = URL.createObjectURL(a.blob); d.append(m); });
+      const ap = document.createElement('button'); ap.className = 'sec'; ap.textContent = 'Apagar do celular';
+      ap.onclick = async () => { if (!confirm(g.exportado ? 'Apagar esta gravação do celular?' : 'Esta gravação ainda NÃO foi exportada. Apagar mesmo assim?')) return; await bd('readwrite', st => st.delete(g.id)); desenhaBiblioteca(); };
+      d.append(ap); box.append(d);
+    });
+    l.append(box);
   });
 }
 
@@ -278,20 +301,24 @@ async function zip(entradas) {
   return new Blob([...partes, ...central, fimc.buffer], { type: 'application/zip' });
 }
 
-$('#bExportar').onclick = async () => {
-  const av = $('#bAviso'); av.className = 'aviso';
+$('#bExportar').onclick = () => {
   const marcados = [...document.querySelectorAll('#bLista input[type=checkbox]:checked')].map(i => i.dataset.id);
-  if (!marcados.length) { av.textContent = 'Marque as gravações que deseja exportar.'; return; }
-  const itens = (await bd('readonly', st => st.getAll())).filter(g => marcados.includes(g.id));
+  if (!marcados.length) { $('#bAviso').textContent = 'Marque as gravações que deseja exportar.'; return; }
+  exportar(marcados, null);
+};
+async function exportar(ids, nomePasta) {
+  const av = $('#bAviso'); av.className = 'aviso';
+  const itens = (await bd('readonly', st => st.getAll())).filter(g => ids.includes(g.id)).sort((a, b) => a.criado.localeCompare(b.criado));
   av.textContent = 'Montando o pacote…';
-  const base = 'VisuWhats_gravacoes_' + new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
+  const slug = (nomePasta || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
+  const base = 'VisuWhats_gravacoes_' + (slug ? slug + '_' : '') + new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
   const entradas = [];
-  const indice = { tipo: 'biblioteca de gravacoes VisuWhats', exportado_em_utc: new Date().toISOString(), gravacoes: [] };
+  const indice = { tipo: 'biblioteca de gravacoes VisuWhats', pasta: nomePasta, exportado_em_utc: new Date().toISOString(), gravacoes: [] };
   for (const g of itens) {
     entradas.push({ nome: `${base}/${g.id}/comprovante.json`, blob: g.comprovante });
     if (g.ots) entradas.push({ nome: `${base}/${g.id}/comprovante.json.ots`, blob: g.ots });
     g.arquivos.forEach(a => entradas.push({ nome: `${base}/${g.id}/${a.nome}`, blob: a.blob }));
-    indice.gravacoes.push({ id: g.id, nota: g.comp.nota, inicio_utc: g.comp.inicio_utc, duracao_s: g.comp.duracao_s, comprovante_sha256: await hashArquivo(g.comprovante) });
+    indice.gravacoes.push({ id: g.id, pasta: g.comp.pasta || null, nota: g.comp.nota, inicio_utc: g.comp.inicio_utc, duracao_s: g.comp.duracao_s, comprovante_sha256: await hashArquivo(g.comprovante) });
   }
   entradas.unshift({ nome: `${base}/biblioteca.json`, blob: new Blob([JSON.stringify(indice, null, 1)], { type: 'application/json' }) });
   let pacote;
@@ -305,4 +332,4 @@ $('#bExportar').onclick = async () => {
   await bd('readwrite', st => { itens.forEach(g => { g.exportado = true; st.put(g); }); return null; });
   av.innerHTML = `<span class="ok">Pacote gerado (${(arq.size / 1048576).toFixed(1)} MB).</span> SHA-256 <span class="h">${h}</span>`;
   desenhaBiblioteca();
-};
+}
