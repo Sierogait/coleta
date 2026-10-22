@@ -1,0 +1,44 @@
+{
+  "name": "Coleta de prova do WhatsApp",
+  "short_name": "Coleta",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f1ec",
+  "theme_color": "#1f7a5a",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "icone-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icone-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "share_target": {
+    "action": "./receber",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "titulo",
+      "text": "texto",
+      "files": [
+        {
+          "name": "arquivos",
+          "accept": [
+            "application/zip",
+            ".zip",
+            "text/plain",
+            ".txt",
+            "video/*",
+            "image/*"
+          ]
+        }
+      ]
+    }
+  }
+}

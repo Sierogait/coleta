@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verificador de Integridade</title>
+<meta name="theme-color" content="#1f7a5a">
+<style>
+:root{--bg:#f3f1ec;--panel:#fff;--ink:#16211c;--mute:#5d6b64;--line:#dfe4e1;--accent:#1f7a5a;--bad:#b4261b}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#101513;--panel:#18201c;--ink:#e8efeb;--mute:#93a39b;--line:#2a3530}}
+:root[data-theme="dark"]{--bg:#101513;--panel:#18201c;--ink:#e8efeb;--mute:#93a39b;--line:#2a3530}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;padding:0 16px 32px}
+main{max-width:760px;margin:0 auto}
+h1{font-size:23px;margin:22px 0 4px}
+.sub{color:var(--mute);font-size:14.5px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin:14px 0}
+.esperado{font:13px ui-monospace,Menlo,monospace;word-break:break-all;background:var(--bg);padding:8px;border-radius:8px;margin-top:6px}
+.zona{border:2px dashed var(--line);border-radius:12px;padding:26px 12px;text-align:center;color:var(--mute);cursor:pointer;margin-top:10px}
+.zona.sobre{border-color:var(--accent);color:var(--accent)}
+.zona b{color:var(--accent)}
+input[type=file]{display:none}
+input[type=text]{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font:13px ui-monospace,Menlo,monospace;background:var(--bg);color:var(--ink)}
+.res{margin-top:10px}
+.item{border-top:1px solid var(--line);padding:10px 0;font-size:14px}
+.item:first-child{border-top:0}
+.h{font:12px ui-monospace,Menlo,monospace;color:var(--mute);word-break:break-all}
+.ok{color:var(--accent);font-weight:700}
+.nao{color:var(--bad);font-weight:700}
+.barra{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:6px}.barra i{display:block;height:100%;width:0;background:var(--accent)}
+details{font-size:14px;color:var(--mute)}
+footer{color:var(--mute);font-size:12.5px;text-align:center;margin-top:20px}
+</style>
+</head>
+<body>
+<main>
+<h1>Verificador de integridade</h1>
+<div class="sub">Confere se um arquivo é exatamente o mesmo descrito num relatório, comparando o código SHA-256. <b>O arquivo não sai deste aparelho:</b> o cálculo é feito aqui, no navegador.</div>
+
+<div class="card" id="cEsperado" hidden>
+  <div><b id="tituloRef">Arquivo esperado</b></div>
+  <div class="sub" id="descRef"></div>
+  <div class="esperado" id="hEsperado"></div>
+</div>
+
+<div class="card">
+  <div id="instr">Arraste aqui o arquivo (ou vários). Para conferir um pacote inteiro, inclua também o <b>SHA256SUMS.txt</b>.</div>
+  <label class="zona" id="zona"><b>Escolher arquivos</b> ou arrastar para cá<input type="file" id="arq" multiple></label>
+  <div style="margin-top:10px"><details><summary>Comparar com um código digitado</summary><input type="text" id="hManual" placeholder="cole aqui o SHA-256 que consta no relatório" style="margin-top:6px"></details></div>
+  <div class="res" id="res"></div>
+</div>
+
+<div class="card">
+  <details><summary><b>Como funciona</b></summary>
+  <p>O SHA-256 é uma “impressão digital” matemática do arquivo: qualquer alteração, mesmo de um único caractere, produz um código completamente diferente. Se o código calculado aqui for igual ao que consta no relatório, o arquivo é idêntico ao registrado.</p>
+  <p>A mesma conferência pode ser feita sem este site: no Mac ou Linux, <code>shasum -a 256 arquivo</code>; no Windows, <code>certutil -hashfile arquivo SHA256</code>.</p>
+  <p>O carimbo do tempo de cada selo (arquivo .ots) pode ser conferido em opentimestamps.org.</p>
+  </details>
+</div>
+<footer>VisuWhats · verificador público · nenhum arquivo é enviado pela internet</footer>
+</main>
+<script src="hash.js"></script>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const P = new URLSearchParams(location.hash.slice(1));
+let ESPERADO = (P.get('sha256') || '').toLowerCase().replace(/[^0-9a-f]/g, '');
+if (ESPERADO.length === 64) {
+  $('#cEsperado').hidden = false;
+  $('#hEsperado').textContent = ESPERADO;
+  if (P.get('arquivo')) $('#tituloRef').textContent = 'Arquivo esperado: ' + P.get('arquivo');
+  const partes = [P.get('ref'), P.get('bytes') ? Number(P.get('bytes')).toLocaleString('pt-BR') + ' bytes' : ''].filter(Boolean);
+  $('#descRef').textContent = partes.join(' · ');
+  $('#instr').innerHTML = 'Arraste aqui o arquivo juntado aos autos (por exemplo, o <b>.zip</b> exportado) para conferir com o código acima.';
+}
+$('#hManual').oninput = e => { const v = e.target.value.toLowerCase().replace(/[^0-9a-f]/g, ''); if (v.length === 64) { ESPERADO = v; $('#cEsperado').hidden = false; $('#hEsperado').textContent = v; } };
+
+function lerSomas(txt) {
+  const m = {};
+  txt.split(/\r?\n/).forEach(l => { const r = l.match(/^([0-9a-fA-F]{64})\s+\*?(.+)$/); if (r) m[r[2].trim().split('/').pop()] = r[1].toLowerCase(); });
+  return m;
+}
+async function conferir(lista) {
+  const res = $('#res'); res.textContent = '';
+  let somas = null;
+  const somasArq = lista.find(f => /SHA256SUMS\.txt$/i.test(f.name));
+  if (somasArq) somas = lerSomas(await somasArq.text());
+  for (const f of lista) {
+    if (f === somasArq) continue;
+    const d = document.createElement('div'); d.className = 'item';
+    d.innerHTML = `<div><b></b> · ${(f.size / 1048576).toFixed(2)} MB</div><div class="barra"><i></i></div>`;
+    d.querySelector('b').textContent = f.name; res.append(d);
+    const h = await hashArquivo(f, n => { d.querySelector('.barra i').style.width = (n / f.size * 100).toFixed(1) + '%'; });
+    d.querySelector('.barra').remove();
+    const alvo = somas ? somas[f.name] : (ESPERADO.length === 64 ? ESPERADO : null);
+    const linha = document.createElement('div');
+    if (!alvo) linha.innerHTML = `SHA-256 calculado: <span class="h">${h}</span>`;
+    else if (alvo === h) linha.innerHTML = `<span class="ok">✓ Confere.</span> O arquivo é idêntico ao registrado.<div class="h">${h}</div>`;
+    else linha.innerHTML = `<span class="nao">✗ Não confere.</span> Este arquivo é diferente do registrado.<div class="h">calculado ${h}<br>esperado&nbsp; ${alvo}</div>`;
+    d.append(linha);
+  }
+  if (somas) {
+    const recebidos = new Set(lista.map(f => f.name));
+    const faltam = Object.keys(somas).filter(n => !recebidos.has(n));
+    if (faltam.length) { const d = document.createElement('div'); d.className = 'item'; d.textContent = `Não incluídos nesta conferência (${faltam.length}): ${faltam.slice(0, 20).join(', ')}${faltam.length > 20 ? '…' : ''}`; res.append(d); }
+  }
+}
+$('#arq').onchange = e => conferir([...e.target.files]);
+const z = $('#zona');
+['dragenter', 'dragover'].forEach(t => z.addEventListener(t, e => { e.preventDefault(); z.classList.add('sobre'); }));
+['dragleave', 'drop'].forEach(t => z.addEventListener(t, e => { e.preventDefault(); z.classList.remove('sobre'); }));
+z.addEventListener('drop', e => conferir([...e.dataTransfer.files]));
+</script>
+</body>
+</html>
