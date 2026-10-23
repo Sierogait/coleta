@@ -56,7 +56,10 @@ button:disabled{opacity:.5}
 .pasta>.cab{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .pasta>.cab b{font-size:16px}.pasta>.cab button{width:auto;margin:0;padding:7px 10px;font-size:13px}
 button.gravando{background:#c0392b}
-footer{color:var(--mute);font-size:12px;text-align:center;margin-top:16px}
+footer{color:var(--mute);font-size:11.5px;text-align:center;margin-top:22px;line-height:1.6;opacity:.85}
+footer .selo{display:inline-flex;align-items:center;gap:7px;color:var(--ink);text-decoration:none;font-size:12.5px;letter-spacing:.02em;margin-bottom:2px}
+footer .selo img{height:22px;filter:brightness(.72) saturate(1.4) contrast(1.15)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) footer .selo img{filter:none}}
 </style>
 </head>
 <body>
@@ -148,7 +151,8 @@ footer{color:var(--mute);font-size:12px;text-align:center;margin-top:16px}
   <div class="aviso" id="bAviso"></div>
 </section>
 </div>
-<footer>VisuWhats · Coleta 1.4 · nenhum dado é enviado a servidores do escritório</footer>
+<footer><a class="selo" href="https://www.tiagomilhomem.com/" target="_blank" rel="noopener"><img src="marca.png" alt=""><span>Tiago Milhomem · Advocacia &amp; Consultoria</span></a>
+  <div>© Tiago Milhomem · OAB/GO 77.011 · Coleta 1.5</div><div>Nenhum dado é enviado a servidores do escritório.</div></footer>
 
 <script>
 "use strict";
