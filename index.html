@@ -64,6 +64,13 @@ footer{color:var(--mute);font-size:12px;text-align:center;margin-top:16px}
   <h1>Coleta de prova do WhatsApp</h1>
   <div class="sub">Tudo é processado neste celular. Os arquivos só saem daqui quando você mesmo os enviar ao escritório.</div>
 </header>
+<section class="passo instalar" id="instalar" hidden>
+  <h2><span class="n">⬇</span>Instale o app neste celular</h2>
+  <p>Instalado, ele abre pelo ícone na tela inicial, funciona sem internet e guarda suas gravações com segurança.</p>
+  <ol id="instrInst"></ol>
+  <button id="btnInstalar" hidden>Instalar agora</button>
+  <button class="sec" id="ocultarInst">Já instalei / ocultar</button>
+</section>
 <nav class="abas"><button data-a="abaConversa" class="on">💬 Conversa</button><button data-a="abaGravar">🎙 Gravar</button><button data-a="abaBib">📚 Biblioteca</button></nav>
 <div id="abaConversa">
 
@@ -141,7 +148,7 @@ footer{color:var(--mute);font-size:12px;text-align:center;margin-top:16px}
   <div class="aviso" id="bAviso"></div>
 </section>
 </div>
-<footer>VisuWhats · Coleta 1.3 · nenhum dado é enviado a servidores do escritório</footer>
+<footer>VisuWhats · Coleta 1.4 · nenhum dado é enviado a servidores do escritório</footer>
 
 <script>
 "use strict";
@@ -197,6 +204,37 @@ async function recebidosDoCompartilhar(){
   }catch(e){}
 }
 recebidosDoCompartilhar();
+
+// ---------------- instruções de instalação, conforme o celular e o navegador
+(function(){
+  const ua=navigator.userAgent;
+  const instalado=(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;
+  let oculto=false; try{ oculto=localStorage.getItem('coleta_inst_oculto')==='1'; }catch(e){}
+  if(instalado||oculto) return;
+  const ehAndroid=/Android/i.test(ua);
+  const ehChromeAndroid=ehAndroid&&/Chrome\//.test(ua)&&!/SamsungBrowser|Firefox|OPR|EdgA|wv\)/.test(ua);
+  const ehSafariIOS=ehIOS&&/Safari\//.test(ua)&&!/CriOS|FxiOS|EdgiOS|OPiOS|GSA\//.test(ua);
+  const el=$('#instrInst'); let html='';
+  if(ehIOS && !ehSafariIOS){
+    html='<li><b>Abra este link no Safari</b> (o navegador da bússola azul): toque e segure o link, escolha <b>Copiar</b>, cole na barra do Safari.</li><li>Depois siga as instruções que vão aparecer lá.</li>';
+  } else if(ehIOS){
+    html='<li>Toque no botão <b>Compartilhar</b> do Safari (quadrado com seta para cima; nas versões mais novas do iPhone ele fica dentro do menu <b>⋯</b>, no canto da barra).</li>'+
+         '<li>Role e toque em <b>Adicionar à Tela de Início</b>.</li><li>Confirme em <b>Adicionar</b>. O ícone <b>Coleta</b> aparece na tela do iPhone; use sempre por ele.</li>';
+  } else if(ehChromeAndroid){
+    html='<li>Toque em <b>Instalar agora</b>, abaixo. Se o botão não aparecer, toque no menu <b>⋮</b> (canto superior direito) e em <b>Instalar app</b> ou <b>Adicionar à tela inicial</b>.</li>'+
+         '<li>Confirme. O ícone <b>Coleta</b> aparece junto com seus apps; use sempre por ele.</li><li>Com o app instalado, a opção <b>Coleta</b> aparece no botão Compartilhar do WhatsApp.</li>';
+  } else if(ehAndroid){
+    html='<li><b>Abra este link no Google Chrome</b>: copie o endereço e cole na barra do Chrome. Neste navegador a instalação e o envio pelo Compartilhar podem não funcionar.</li><li>Depois siga as instruções que vão aparecer lá.</li>';
+  } else {
+    html='<li>Este app foi feito para o celular. Abra este mesmo link no iPhone (Safari) ou no Android (Chrome).</li>';
+  }
+  el.innerHTML=html; $('#instalar').hidden=false;
+  let pedido=null;
+  window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); pedido=e; $('#btnInstalar').hidden=false; });
+  $('#btnInstalar').onclick=async()=>{ if(!pedido) return; pedido.prompt(); const r=await pedido.userChoice.catch(()=>null); pedido=null; $('#btnInstalar').hidden=true; if(r&&r.outcome==='accepted') $('#instalar').hidden=true; };
+  window.addEventListener('appinstalled',()=>{ $('#instalar').hidden=true; });
+  $('#ocultarInst').onclick=()=>{ $('#instalar').hidden=true; try{ localStorage.setItem('coleta_inst_oculto','1'); }catch(e){} };
+})();
 if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 
 // ---------------- carimbo do tempo (OpenTimestamps): envia apenas o hash
