@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Verificador de Integridade</title>
 <meta name="theme-color" content="#1f7a5a">
 <style>
@@ -10,17 +10,24 @@
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#101513;--panel:#18201c;--ink:#e8efeb;--mute:#93a39b;--line:#2a3530}}
 :root[data-theme="dark"]{--bg:#101513;--panel:#18201c;--ink:#e8efeb;--mute:#93a39b;--line:#2a3530}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;padding:0 16px 32px}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;padding:0 max(16px,env(safe-area-inset-left)) calc(32px + env(safe-area-inset-bottom));-webkit-text-size-adjust:100%}
 main{max-width:760px;margin:0 auto}
 h1{font-size:23px;margin:22px 0 4px}
 .sub{color:var(--mute);font-size:14.5px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin:14px 0}
-.esperado{font:13px ui-monospace,Menlo,monospace;word-break:break-all;background:var(--bg);padding:8px;border-radius:8px;margin-top:6px}
-.zona{border:2px dashed var(--line);border-radius:12px;padding:26px 12px;text-align:center;color:var(--mute);cursor:pointer;margin-top:10px}
+.esperado{font:12.5px/1.45 ui-monospace,Menlo,monospace;word-break:break-all;overflow-wrap:anywhere;background:var(--bg);padding:10px;border-radius:8px;margin-top:8px}
+.zona{display:block;border:2px dashed var(--line);border-radius:12px;padding:22px 12px;text-align:center;color:var(--mute);cursor:pointer;margin-top:12px;-webkit-tap-highlight-color:transparent}
+.zona b{display:block;font-size:17px;margin-bottom:2px}
+.zona:active{background:var(--bg)}
 .zona.sobre{border-color:var(--accent);color:var(--accent)}
 .zona b{color:var(--accent)}
+#hManual{margin-top:8px}
+summary{cursor:pointer;padding:4px 0}
+.marca{display:flex;align-items:center;gap:8px;justify-content:center;color:var(--ink);text-decoration:none;font-size:13px;margin-bottom:4px}
+.marca img{height:20px;filter:brightness(.72) saturate(1.4) contrast(1.15)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .marca img{filter:none}}
 input[type=file]{display:none}
-input[type=text]{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font:13px ui-monospace,Menlo,monospace;background:var(--bg);color:var(--ink)}
+input[type=text]{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font:16px ui-monospace,Menlo,monospace;background:var(--bg);color:var(--ink);-webkit-appearance:none}
 .res{margin-top:10px}
 .item{border-top:1px solid var(--line);padding:10px 0;font-size:14px}
 .item:first-child{border-top:0}
@@ -45,8 +52,8 @@ footer{color:var(--mute);font-size:12.5px;text-align:center;margin-top:20px}
 
 <div class="card">
   <div id="instr">Arraste aqui o arquivo (ou vários). Para conferir um pacote inteiro, inclua também o <b>SHA256SUMS.txt</b>.</div>
-  <label class="zona" id="zona"><b>Escolher arquivos</b> ou arrastar para cá<input type="file" id="arq" multiple></label>
-  <div style="margin-top:10px"><details><summary>Comparar com um código digitado</summary><input type="text" id="hManual" placeholder="cole aqui o SHA-256 que consta no relatório" style="margin-top:6px"></details></div>
+  <label class="zona" id="zona"><b>Escolher arquivos</b><span id="zonaTx">ou arrastar para cá</span><input type="file" id="arq" multiple></label>
+  <div style="margin-top:12px"><details><summary>Comparar com um código digitado</summary><input type="text" id="hManual" placeholder="cole o SHA-256 do relatório" autocomplete="off" autocapitalize="off" spellcheck="false"></details></div>
   <div class="res" id="res"></div>
 </div>
 
@@ -57,13 +64,15 @@ footer{color:var(--mute);font-size:12.5px;text-align:center;margin-top:20px}
   <p>O carimbo do tempo de cada selo (arquivo .ots) pode ser conferido em opentimestamps.org.</p>
   </details>
 </div>
-<footer>VisuWhats · verificador público · nenhum arquivo é enviado pela internet</footer>
+<footer><a class="marca" href="https://www.tiagomilhomem.com/" target="_blank" rel="noopener"><img src="marca.png" alt="">Tiago Milhomem · Advocacia &amp; Consultoria</a>Verificador público VisuWhats · nenhum arquivo é enviado pela internet</footer>
 </main>
 <script src="hash.js"></script>
 <script>
 "use strict";
 const $ = s => document.querySelector(s);
 const P = new URLSearchParams(location.hash.slice(1));
+const TOQUE = matchMedia('(pointer: coarse)').matches;
+if (TOQUE) { $('#zonaTx').textContent = 'no celular, toque e escolha em Arquivos ou Fotos'; $('#instr').innerHTML = 'Escolha o arquivo (ou vários). Para conferir um pacote inteiro, inclua também o <b>SHA256SUMS.txt</b>.'; }
 let ESPERADO = (P.get('sha256') || '').toLowerCase().replace(/[^0-9a-f]/g, '');
 if (ESPERADO.length === 64) {
   $('#cEsperado').hidden = false;
@@ -71,7 +80,7 @@ if (ESPERADO.length === 64) {
   if (P.get('arquivo')) $('#tituloRef').textContent = 'Arquivo esperado: ' + P.get('arquivo');
   const partes = [P.get('ref'), P.get('bytes') ? Number(P.get('bytes')).toLocaleString('pt-BR') + ' bytes' : ''].filter(Boolean);
   $('#descRef').textContent = partes.join(' · ');
-  $('#instr').innerHTML = 'Arraste aqui o arquivo juntado aos autos (por exemplo, o <b>.zip</b> exportado) para conferir com o código acima.';
+  $('#instr').innerHTML = (TOQUE ? 'Escolha' : 'Arraste aqui') + ' o arquivo juntado aos autos (por exemplo, o <b>.zip</b> exportado) para conferir com o código acima.';
 }
 $('#hManual').oninput = e => { const v = e.target.value.toLowerCase().replace(/[^0-9a-f]/g, ''); if (v.length === 64) { ESPERADO = v; $('#cEsperado').hidden = false; $('#hEsperado').textContent = v; } };
 
