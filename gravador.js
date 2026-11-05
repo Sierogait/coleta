@@ -268,7 +268,8 @@ async function desenhaBiblioteca() {
       const mostraAnot = () => {
         caixaAnot.textContent = '';
         if (ult && ult.texto) { const b = document.createElement('div'); b.className = 'anot'; b.textContent = ult.texto;
-          const sm = document.createElement('small'); sm.textContent = 'anotação de ' + new Date(ult.em_utc).toLocaleString('pt-BR') + (an.length > 1 ? ` · ${an.length - 1} versão(ões) anterior(es) guardada(s)` : ''); b.append(sm); caixaAnot.append(b); }
+          const sm = document.createElement('small'); sm.textContent = 'anotação de ' + new Date(ult.em_utc).toLocaleString('pt-BR') + (an.length > 1 ? ` · ${an.length - 1} versão(ões) anterior(es) guardada(s)` : '') + ' · toque para editar'; b.append(sm); b.onclick = () => ba.onclick(); caixaAnot.append(b); }
+        else { const b = document.createElement('div'); b.className = 'anot vazia'; b.textContent = '📝 Toque aqui para anotar o contexto desta gravação'; b.onclick = () => ba.onclick(); caixaAnot.append(b); }
       };
       mostraAnot(); d.append(caixaAnot);
       g.arquivos.forEach(a => { const m = document.createElement(a.papel === 'video' ? 'video' : 'audio'); m.controls = true; m.preload = 'none'; m.playsInline = true; m.src = URL.createObjectURL(a.blob); d.append(m); });

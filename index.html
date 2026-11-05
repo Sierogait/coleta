@@ -54,6 +54,8 @@ button:disabled{opacity:.5}
 .grav button{width:auto;padding:6px 10px;font-size:13px;margin-top:6px}
 textarea{min-height:64px;resize:vertical;line-height:1.4}
 .anot{background:color-mix(in srgb,var(--accent) 7%,var(--bg));border-left:3px solid var(--accent);border-radius:6px;padding:7px 9px;margin-top:6px;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.anot.vazia{background:transparent;border:1.5px dashed var(--accent);color:var(--accent);font-weight:600;text-align:center;cursor:pointer}
+.anot{cursor:pointer}
 .anot small{display:block;color:var(--mute);font-size:11.5px;margin-top:3px}
 .grav .acoes{display:flex;gap:6px;flex-wrap:wrap}
 .pasta{border:1.5px solid var(--accent);border-radius:12px;padding:10px;margin-top:10px}
@@ -157,7 +159,7 @@ footer .selo img{height:22px;filter:brightness(.72) saturate(1.4) contrast(1.15)
 </section>
 </div>
 <footer><a class="selo" href="https://www.tiagomilhomem.com/" target="_blank" rel="noopener"><img src="marca.png" alt=""><span>Tiago Milhomem · Advocacia &amp; Consultoria</span></a>
-  <div>© Tiago Milhomem · OAB/GO 77.011 · Coleta 1.6</div><div>Nenhum dado é enviado a servidores do escritório.</div></footer>
+  <div>© Tiago Milhomem · OAB/GO 77.011 · Coleta 1.7</div><div>Nenhum dado é enviado a servidores do escritório.</div></footer>
 
 <script>
 "use strict";
@@ -244,7 +246,12 @@ recebidosDoCompartilhar();
   window.addEventListener('appinstalled',()=>{ $('#instalar').hidden=true; });
   $('#ocultarInst').onclick=()=>{ $('#instalar').hidden=true; try{ localStorage.setItem('coleta_inst_oculto','1'); }catch(e){} };
 })();
-if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+if('serviceWorker' in navigator){
+  // versão nova publicada: o app se atualiza sozinho ao abrir (sem perder as gravações, que ficam no banco do celular)
+  let recarregou=false; const tinha=!!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(tinha && !recarregou && !(typeof G!=='undefined' && G)){ recarregou=true; location.reload(); } });
+  navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(r=>{ r.update().catch(()=>{}); document.addEventListener('visibilitychange',()=>{ if(!document.hidden) r.update().catch(()=>{}); }); }).catch(()=>{});
+}
 
 // ---------------- carimbo do tempo (OpenTimestamps): envia apenas o hash
 function varuint(n){ const o=[]; while(n>0x7f){ o.push((n&0x7f)|0x80); n>>>=7; } o.push(n); return o; }
