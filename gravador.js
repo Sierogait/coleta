@@ -34,6 +34,7 @@ const PROC = `class Cap extends AudioWorkletProcessor{process(i){const c=i[0]&&i
 const RES = { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 } };
 let G = null;  // gravação em andamento
 
+function esc(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
 function fmtTempo(s) { s = Math.floor(s); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); }
 function blocoInfo(campos) {
   const enc = new TextEncoder(); const subs = [];
@@ -221,11 +222,13 @@ async function parar() {
   const bytes = new TextEncoder().encode(JSON.stringify(comp, null, 1));
   let ots = null;
   try { ots = new Blob([await carimbar(bytes)]); } catch (e) {}
+  const anotTxt = $('#gAnot').value.trim();
+  const anotacoes = anotTxt ? [{ texto: anotTxt, em_utc: new Date().toISOString(), momento: 'ao gravar' }] : [];
   await bd('readwrite', st => st.put({ id, criado: fim.toISOString(), comp, comprovante: new Blob([bytes], { type: 'application/json' }), ots,
-    arquivos: arquivos.map(a => ({ nome: a.nome, papel: a.papel, blob: a.blob })), exportado: false }));
+    arquivos: arquivos.map(a => ({ nome: a.nome, papel: a.papel, blob: a.blob })), exportado: false, anotacoes }));
   $('#gBotao').disabled = false; $('#gBotao').textContent = '● Começar a gravar'; $('#gBotao').classList.remove('gravando');
   document.querySelectorAll('input[name=gmodo]').forEach(r => r.disabled = false);
-  $('#gNivel').style.width = '0'; $('#gNota').value = ''; $('#gLocal').textContent = ''; preencherPastas();
+  $('#gNivel').style.width = '0'; $('#gNota').value = ''; $('#gAnot').value = ''; $('#gLocal').textContent = ''; preencherPastas();
   $('#gAviso').innerHTML = `<span class="ok">Gravação salva na biblioteca (${fmtTempo(comp.duracao_s)}).</span> ${local.obtida ? '📍 ' + locTxt + '. ' : ''}${relogio.conferido ? 'Relógio do celular conferido (diferença ' + relogio.diferenca_s + ' s). ' : ''} SHA-256 do áudio: <span class="h">${lista[0].sha256}</span>${ots ? '<br>Carimbo do tempo registrado.' : '<br>Sem internet: carimbo do tempo não registrado; o escritório registra ao receber.'}`;
 }
 $('#gBotao').onclick = () => G ? parar() : comecar();
@@ -257,12 +260,39 @@ async function desenhaBiblioteca() {
     lista.forEach(g => {
       const d = document.createElement('div'); d.className = 'grav';
       const c = g.comp;
-      d.innerHTML = `<div class="lin"><input type="checkbox" data-id="${g.id}" ${g.exportado ? '' : 'checked'}><b>${(c.nota || 'Gravação').replace(/</g, '&lt;')}</b></div>
-        <div class="aviso">${new Date(c.inicio_utc).toLocaleString('pt-BR')} · ${fmtTempo(c.duracao_s)} · ${c.modo === 'video' ? 'vídeo + áudio' : 'áudio'}${g.exportado ? ' · <span class="ok">exportada</span>' : ''}${g.ots ? '' : ' · sem carimbo'}</div>`;
+      const pend = !g.exportado || g.anot_pendente;
+      d.innerHTML = `<div class="lin"><input type="checkbox" data-id="${g.id}" ${pend ? 'checked' : ''}><b>${esc(c.nota || 'Gravação')}</b></div>
+        <div class="aviso">${new Date(c.inicio_utc).toLocaleString('pt-BR')} · ${fmtTempo(c.duracao_s)} · ${c.modo === 'video' ? 'vídeo + áudio' : 'áudio'}${g.exportado ? (g.anot_pendente ? ' · <span class="erro">anotação nova ainda não exportada</span>' : ' · <span class="ok">exportada</span>') : ''}${g.ots ? '' : ' · sem carimbo'}</div>`;
+      const an = (g.anotacoes || []); const ult = an[an.length - 1];
+      const caixaAnot = document.createElement('div');
+      const mostraAnot = () => {
+        caixaAnot.textContent = '';
+        if (ult && ult.texto) { const b = document.createElement('div'); b.className = 'anot'; b.textContent = ult.texto;
+          const sm = document.createElement('small'); sm.textContent = 'anotação de ' + new Date(ult.em_utc).toLocaleString('pt-BR') + (an.length > 1 ? ` · ${an.length - 1} versão(ões) anterior(es) guardada(s)` : ''); b.append(sm); caixaAnot.append(b); }
+      };
+      mostraAnot(); d.append(caixaAnot);
       g.arquivos.forEach(a => { const m = document.createElement(a.papel === 'video' ? 'video' : 'audio'); m.controls = true; m.preload = 'none'; m.playsInline = true; m.src = URL.createObjectURL(a.blob); d.append(m); });
+      const acoes = document.createElement('div'); acoes.className = 'acoes';
+      const ba = document.createElement('button'); ba.className = 'sec'; ba.textContent = ult && ult.texto ? '📝 Editar anotação' : '📝 Anotar';
+      ba.onclick = () => {
+        caixaAnot.textContent = '';
+        const ta = document.createElement('textarea'); ta.value = ult ? ult.texto : ''; ta.placeholder = 'Contexto desta gravação: quem fala, quando foi enviado, por que é importante…';
+        const ok = document.createElement('button'); ok.textContent = 'Salvar anotação';
+        const cx = document.createElement('button'); cx.className = 'sec'; cx.textContent = 'Cancelar';
+        cx.onclick = () => { mostraAnot(); acoes.hidden = false; };
+        ok.onclick = async () => {
+          const t = ta.value.trim();
+          if (t === (ult ? ult.texto : '')) { mostraAnot(); acoes.hidden = false; return; }
+          const nova = { texto: t, em_utc: new Date().toISOString(), momento: 'depois de gravar' };
+          await bd('readwrite', st => { g.anotacoes = [...(g.anotacoes || []), nova]; if (g.exportado) g.anot_pendente = true; st.put(g); return null; });
+          desenhaBiblioteca();
+        };
+        const lin = document.createElement('div'); lin.className = 'acoes'; lin.append(ok, cx);
+        caixaAnot.append(ta, lin); acoes.hidden = true; ta.focus();
+      };
       const ap = document.createElement('button'); ap.className = 'sec'; ap.textContent = 'Apagar do celular';
       ap.onclick = async () => { if (!confirm(g.exportado ? 'Apagar esta gravação do celular?' : 'Esta gravação ainda NÃO foi exportada. Apagar mesmo assim?')) return; await bd('readwrite', st => st.delete(g.id)); desenhaBiblioteca(); };
-      d.append(ap); box.append(d);
+      acoes.append(ba, ap); d.append(acoes); box.append(d);
     });
     l.append(box);
   });
@@ -318,7 +348,13 @@ async function exportar(ids, nomePasta) {
     entradas.push({ nome: `${base}/${g.id}/comprovante.json`, blob: g.comprovante });
     if (g.ots) entradas.push({ nome: `${base}/${g.id}/comprovante.json.ots`, blob: g.ots });
     g.arquivos.forEach(a => entradas.push({ nome: `${base}/${g.id}/${a.nome}`, blob: a.blob }));
-    indice.gravacoes.push({ id: g.id, pasta: g.comp.pasta || null, nota: g.comp.nota, inicio_utc: g.comp.inicio_utc, duracao_s: g.comp.duracao_s, comprovante_sha256: await hashArquivo(g.comprovante) });
+    const an = (g.anotacoes || []).filter(x => x && x.em_utc);
+    if (an.length) entradas.push({ nome: `${base}/${g.id}/anotacoes.json`, blob: new Blob([JSON.stringify({
+      tipo: 'anotacoes do usuario VisuWhats', id: g.id,
+      aviso: 'Anotações escritas pelo usuário para lembrar o contexto. Não fazem parte do comprovante nem do áudio e podem ter sido escritas depois da gravação.',
+      anotacoes: an }, null, 1)], { type: 'application/json' }) });
+    indice.gravacoes.push({ id: g.id, pasta: g.comp.pasta || null, nota: g.comp.nota, inicio_utc: g.comp.inicio_utc, duracao_s: g.comp.duracao_s,
+      anotacao: an.length ? an[an.length - 1].texto : null, comprovante_sha256: await hashArquivo(g.comprovante) });
   }
   entradas.unshift({ nome: `${base}/biblioteca.json`, blob: new Blob([JSON.stringify(indice, null, 1)], { type: 'application/json' }) });
   let pacote;
@@ -329,7 +365,7 @@ async function exportar(ids, nomePasta) {
     if (navigator.canShare && navigator.canShare({ files: [arq] })) await navigator.share({ files: [arq], title: 'Gravações', text: 'Pacote de gravações SHA-256 ' + h });
     else { const a = document.createElement('a'); a.href = URL.createObjectURL(arq); a.download = arq.name; a.click(); }
   } catch (e) { if (e.name === 'AbortError') { av.textContent = 'Envio cancelado.'; return; } }
-  await bd('readwrite', st => { itens.forEach(g => { g.exportado = true; st.put(g); }); return null; });
+  await bd('readwrite', st => { itens.forEach(g => { g.exportado = true; g.anot_pendente = false; st.put(g); }); return null; });
   av.innerHTML = `<span class="ok">Pacote gerado (${(arq.size / 1048576).toFixed(1)} MB).</span> SHA-256 <span class="h">${h}</span>`;
   desenhaBiblioteca();
 }

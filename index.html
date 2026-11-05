@@ -30,7 +30,7 @@ label.arq input{display:none}
 .lista div{padding:4px 0;border-bottom:1px solid var(--line)}
 .h{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--mute);word-break:break-all}
 #estado,#estado2{overflow-wrap:anywhere}
-input[type=text],input[type=tel]{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font:inherit;background:var(--bg);color:var(--ink);margin-top:4px}
+input[type=text],input[type=tel],textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font:inherit;background:var(--bg);color:var(--ink);margin-top:4px}
 .campo{margin-top:8px;font-size:14px}
 .chk{display:flex;gap:10px;align-items:flex-start;font-size:14px;margin-top:10px}
 .chk input{margin-top:4px;width:20px;height:20px;flex:none}
@@ -52,6 +52,10 @@ button:disabled{opacity:.5}
 .grav audio,.grav video{width:100%;margin-top:6px}
 .grav .lin{display:flex;gap:8px;align-items:center;font-size:14px}.grav .lin input{width:20px;height:20px}
 .grav button{width:auto;padding:6px 10px;font-size:13px;margin-top:6px}
+textarea{min-height:64px;resize:vertical;line-height:1.4}
+.anot{background:color-mix(in srgb,var(--accent) 7%,var(--bg));border-left:3px solid var(--accent);border-radius:6px;padding:7px 9px;margin-top:6px;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.anot small{display:block;color:var(--mute);font-size:11.5px;margin-top:3px}
+.grav .acoes{display:flex;gap:6px;flex-wrap:wrap}
 .pasta{border:1.5px solid var(--accent);border-radius:12px;padding:10px;margin-top:10px}
 .pasta>.cab{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .pasta>.cab b{font-size:16px}.pasta>.cab button{width:auto;margin:0;padding:7px 10px;font-size:13px}
@@ -131,6 +135,7 @@ footer .selo img{height:22px;filter:brightness(.72) saturate(1.4) contrast(1.15)
   <div class="modos"><label><input type="radio" name="gmodo" value="audio" checked> Só áudio</label><label><input type="radio" name="gmodo" value="video"> Vídeo com câmera <small>(mostre o outro aparelho: contato, número e o áudio tocando)</small></label></div>
   <div class="campo">Pasta (ex.: Conversa com Camila)<input type="text" id="gPasta" list="gPastas" placeholder="nome da pasta onde guardar"><datalist id="gPastas"></datalist></div>
   <div class="campo">Nome desta gravação (ex.: Áudio de Camila de 10/10, 14h)<input type="text" id="gNota" placeholder="se deixar em branco: Pasta + número"></div>
+  <div class="campo">Anotação (opcional): o contexto, para lembrar depois<textarea id="gAnot" placeholder="ex.: áudio que o gerente mandou no grupo depois da reunião sobre as horas extras"></textarea></div>
   <label class="chk"><input type="checkbox" id="gGeo" checked><span>Registrar a localização (GPS) durante a gravação</span></label>
   <label class="chk" id="gCarimboL"><input type="checkbox" id="gCarimbo" checked><span>No vídeo, gravar data, hora e local sobre a imagem</span></label>
   <canvas id="gTela" hidden></canvas>
@@ -152,7 +157,7 @@ footer .selo img{height:22px;filter:brightness(.72) saturate(1.4) contrast(1.15)
 </section>
 </div>
 <footer><a class="selo" href="https://www.tiagomilhomem.com/" target="_blank" rel="noopener"><img src="marca.png" alt=""><span>Tiago Milhomem · Advocacia &amp; Consultoria</span></a>
-  <div>© Tiago Milhomem · OAB/GO 77.011 · Coleta 1.5</div><div>Nenhum dado é enviado a servidores do escritório.</div></footer>
+  <div>© Tiago Milhomem · OAB/GO 77.011 · Coleta 1.6</div><div>Nenhum dado é enviado a servidores do escritório.</div></footer>
 
 <script>
 "use strict";
