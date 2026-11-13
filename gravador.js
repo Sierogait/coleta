@@ -231,7 +231,109 @@ async function parar() {
   $('#gNivel').style.width = '0'; $('#gNota').value = ''; $('#gAnot').value = ''; $('#gLocal').textContent = ''; preencherPastas();
   $('#gAviso').innerHTML = `<span class="ok">Gravação salva na biblioteca (${fmtTempo(comp.duracao_s)}).</span> ${local.obtida ? '📍 ' + locTxt + '. ' : ''}${relogio.conferido ? 'Relógio do celular conferido (diferença ' + relogio.diferenca_s + ' s). ' : ''} SHA-256 do áudio: <span class="h">${lista[0].sha256}</span>${ots ? '<br>Carimbo do tempo registrado.' : '<br>Sem internet: carimbo do tempo não registrado; o escritório registra ao receber.'}`;
 }
-$('#gBotao').onclick = () => G ? parar() : comecar();
+// ---------------- fotos
+let F = null;  // camera de fotos aberta
+const modoAtual = () => document.querySelector('input[name=gmodo]:checked').value;
+function ajustarModo() {
+  const m = modoAtual(), foto = m === 'foto';
+  $('#gNivelBox').hidden = foto; $('#gTempo').hidden = foto;
+  if (!G && !F) $('#gBotao').textContent = foto ? '📷 Abrir câmera' : '● Começar a gravar';
+  $('#gDesc').innerHTML = foto ? 'Fotografe a tela do outro aparelho (conversa, contato, número) ou o que precisar registrar. Cada foto é guardada <b>sem alteração</b>, com data, hora, local e o próprio comprovante.'
+    : 'Use para registrar um áudio que está tocando em outro aparelho. O som é gravado <b>sem filtros</b> (sem redução de ruído nem ajuste automático de volume), em qualidade máxima.';
+  $('#gAviso').textContent = foto ? 'Segure o celular firme e aguarde o foco antes de tocar em “Tirar foto”.' : 'Mantenha este app aberto e a tela ligada durante a gravação. Coloque o celular perto do alto-falante do outro aparelho.';
+}
+document.querySelectorAll('input[name=gmodo]').forEach(r => r.addEventListener('change', ajustarModo));
+function localAgora(L) {
+  const lim = Date.now() - 120000;
+  const rec = L.pontos.filter(p => Date.parse(p.em_utc) >= lim);
+  if (!rec.length) return { obtida: false, motivo: L.erro || (L.pontos.length ? 'sem posição recente do GPS' : 'sem sinal de GPS no momento da foto') };
+  const melhor = rec.reduce((a, b) => b.precisao_m < a.precisao_m ? b : a); const ult = rec[rec.length - 1];
+  return { obtida: true, fonte: 'GPS/serviço de localização do aparelho', inicio: ult, fim: ult, mais_precisa: melhor, pontos: rec.length, trilha: rec.slice(-20) };
+}
+async function abrirCamera() {
+  const aviso = $('#gAviso'); aviso.className = 'aviso';
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 4096 }, height: { ideal: 3072 } } }); }
+  catch (e) { aviso.textContent = 'O celular não liberou a câmera: ' + e.message; aviso.className = 'aviso erro'; return; }
+  const pv = $('#gPrev'); pv.srcObject = stream; pv.muted = true; pv.hidden = false; await pv.play().catch(() => {});
+  let trava = null; try { trava = await navigator.wakeLock.request('screen'); } catch (e) {}
+  F = { stream, L: iniciarLocalizacao(), relogioP: conferirRelogio(), trava, n: 0 };
+  $('#gBotao').textContent = '📸 Tirar foto'; $('#gFechar').hidden = false;
+  document.querySelectorAll('input[name=gmodo]').forEach(r => r.disabled = true);
+  setTimeout(() => pv.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+  aviso.textContent = 'Câmera aberta. Enquadre e toque em “Tirar foto”. Pode tirar várias; cada uma vira um item da biblioteca.';
+}
+function fecharCamera() {
+  const f = F; F = null; if (!f) return;
+  f.stream.getTracks().forEach(t => t.stop());
+  if (f.L.id != null) navigator.geolocation.clearWatch(f.L.id);
+  try { f.trava && f.trava.release(); } catch (e) {}
+  const pv = $('#gPrev'); pv.hidden = true; pv.srcObject = null;
+  $('#gFechar').hidden = true; $('#gLocal').textContent = '';
+  document.querySelectorAll('input[name=gmodo]').forEach(r => r.disabled = false);
+  ajustarModo(); preencherPastas();
+  if (f.n) { $('#gAviso').innerHTML = `<span class="ok">${f.n} foto(s) salva(s) na biblioteca.</span>`; }
+}
+$('#gFechar').onclick = fecharCamera;
+async function tirarFoto() {
+  const f = F, bt = $('#gBotao'), pv = $('#gPrev'); bt.disabled = true; bt.textContent = 'Salvando…';
+  try {
+    const quando = new Date();
+    const track = f.stream.getVideoTracks()[0];
+    let blob = null, metodo = '';
+    if (window.ImageCapture) { try { blob = await new ImageCapture(track).takePhoto(); metodo = 'foto da câmera em resolução máxima (ImageCapture)'; } catch (e) { blob = null; } }
+    if (!blob) {
+      const cv = document.createElement('canvas'); cv.width = pv.videoWidth; cv.height = pv.videoHeight;
+      cv.getContext('2d').drawImage(pv, 0, 0); blob = await new Promise(ok => cv.toBlob(ok, 'image/jpeg', 0.95)); metodo = 'quadro da câmera ao vivo, JPEG qualidade 95%';
+    }
+    pv.classList.add('flash'); setTimeout(() => pv.classList.remove('flash'), 150);
+    const bmp = await createImageBitmap(blob);
+    const ext = (blob.type || '').includes('png') ? 'png' : 'jpg';
+    const arquivos = [{ nome: 'foto.' + ext, papel: 'foto', blob }];
+    let carimbada = false;
+    if ($('#gCarimbo').checked) {
+      const cv = document.createElement('canvas'); cv.width = bmp.width; cv.height = bmp.height; const c2 = cv.getContext('2d');
+      c2.drawImage(bmp, 0, 0);
+      const linhas = textoCarimbo(f.L); const fs = Math.round(Math.min(cv.width, cv.height) / 26);
+      c2.font = `600 ${fs}px -apple-system, Roboto, Arial`; const alt = fs * 1.35 * linhas.length + fs * 0.6;
+      c2.fillStyle = 'rgba(0,0,0,.55)'; c2.fillRect(0, cv.height - alt, cv.width, alt);
+      c2.fillStyle = '#fff'; linhas.forEach((t, i) => c2.fillText(t, fs * 0.6, cv.height - alt + fs * 1.25 * (i + 1)));
+      arquivos.push({ nome: 'foto_carimbada.jpg', papel: 'foto_carimbada', blob: await new Promise(ok => cv.toBlob(ok, 'image/jpeg', 0.92)) });
+      carimbada = true;
+    }
+    const local = localAgora(f.L);
+    const relogio = await Promise.race([f.relogioP, new Promise(ok => setTimeout(() => ok({ conferido: false, motivo: 'servidor de hora não respondeu a tempo' }), 4000))]);
+    const pasta = ($('#gPasta').value.trim() || 'Sem pasta');
+    try { localStorage.setItem('coleta_pasta', pasta); } catch (e) {}
+    const todas = (await bd('readonly', st => st.getAll())) || [];
+    const nota = $('#gNota').value.trim() ? $('#gNota').value.trim() + (f.n ? ` (${f.n + 1})` : '')
+      : `${pasta} · foto ${todas.filter(x => (x.comp.pasta || 'Sem pasta') === pasta && x.comp.modo === 'foto').length + 1}`;
+    const id = quando.toISOString().replace(/[-:]/g, '').replace('T', '_').slice(0, 15) + '_' + Math.random().toString(36).slice(2, 6);
+    const lista = [];
+    for (const a of arquivos) lista.push({ nome: a.nome, papel: a.papel, bytes: a.blob.size, tipo: a.blob.type, sha256: await hashArquivo(a.blob) });
+    const cfg = track.getSettings ? track.getSettings() : {};
+    const comp = {
+      tipo: 'gravacao VisuWhats', versao: 'Coleta 1.8', id, modo: 'foto', nota, pasta,
+      inicio_local: quando.toString(), utc_offset_min: -quando.getTimezoneOffset(), localizacao: local, relogio_do_aparelho: relogio,
+      metadados_nos_arquivos: { foto: carimbada ? 'foto.' + ext + ' é a imagem original da câmera, sem alteração; foto_carimbada.jpg é uma cópia com data, hora e local impressos sobre a imagem' : 'imagem original da câmera, sem carimbo' },
+      inicio_utc: quando.toISOString(), fim_utc: quando.toISOString(), duracao_s: 0, fuso: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      foto: { formato: blob.type || 'image/jpeg', largura: bmp.width, altura: bmp.height, metodo_captura: metodo, camera: { largura: cfg.width, altura: cfg.height, direcao: cfg.facingMode || null } },
+      aparelho: { navegador: navigator.userAgent, plataforma: navigator.platform || '', idioma: navigator.language },
+      arquivos: lista
+    };
+    const bytes = new TextEncoder().encode(JSON.stringify(comp, null, 1));
+    let ots = null; try { ots = new Blob([await carimbar(bytes)]); } catch (e) {}
+    const anotTxt = $('#gAnot').value.trim();
+    const anotacoes = anotTxt ? [{ texto: anotTxt, em_utc: new Date().toISOString(), momento: 'ao fotografar' }] : [];
+    await bd('readwrite', st => st.put({ id, criado: quando.toISOString(), comp, comprovante: new Blob([bytes], { type: 'application/json' }), ots,
+      arquivos: arquivos.map(a => ({ nome: a.nome, papel: a.papel, blob: a.blob })), exportado: false, anotacoes }));
+    f.n++;
+    $('#gAviso').innerHTML = `<span class="ok">Foto ${f.n} salva (${bmp.width}×${bmp.height}).</span> ${local.obtida ? '📍 ' + local.mais_precisa.lat + ', ' + local.mais_precisa.lon + ' (±' + local.mais_precisa.precisao_m + ' m). ' : ''}SHA-256: <span class="h">${lista[0].sha256}</span>${ots ? '' : '<br>Sem internet: carimbo do tempo não registrado; o escritório registra ao receber.'}`;
+  } catch (e) { $('#gAviso').textContent = 'Não foi possível salvar a foto: ' + e.message; $('#gAviso').className = 'aviso erro'; }
+  bt.disabled = false; bt.textContent = '📸 Tirar foto';
+}
+$('#gBotao').onclick = () => F ? tirarFoto() : G ? parar() : (modoAtual() === 'foto' ? abrirCamera() : comecar());
+ajustarModo();
 
 // ---------------- biblioteca
 async function preencherPastas() {
@@ -253,7 +355,8 @@ async function desenhaBiblioteca() {
     const box = document.createElement('div'); box.className = 'pasta';
     const cab = document.createElement('div'); cab.className = 'cab';
     const tot = lista.reduce((a, g) => a + (g.comp.duracao_s || 0), 0);
-    cab.innerHTML = `<div><b>📁 ${nome.replace(/</g, '&lt;')}</b><div class="aviso">${lista.length} gravação(ões) · ${fmtTempo(tot)}</div></div>`;
+    const nf = lista.filter(g => g.comp.modo === 'foto').length, ng = lista.length - nf;
+    cab.innerHTML = `<div><b>📁 ${nome.replace(/</g, '&lt;')}</b><div class="aviso">${[ng ? ng + ' gravação(ões) · ' + fmtTempo(tot) : '', nf ? nf + ' foto(s)' : ''].filter(Boolean).join(' · ')}</div></div>`;
     const be = document.createElement('button'); be.textContent = 'Exportar pasta';
     be.onclick = () => exportar(lista.map(g => g.id), nome);
     cab.append(be); box.append(cab);
@@ -262,7 +365,7 @@ async function desenhaBiblioteca() {
       const c = g.comp;
       const pend = !g.exportado || g.anot_pendente;
       d.innerHTML = `<div class="lin"><input type="checkbox" data-id="${g.id}" ${pend ? 'checked' : ''}><b>${esc(c.nota || 'Gravação')}</b></div>
-        <div class="aviso">${new Date(c.inicio_utc).toLocaleString('pt-BR')} · ${fmtTempo(c.duracao_s)} · ${c.modo === 'video' ? 'vídeo + áudio' : 'áudio'}${g.exportado ? (g.anot_pendente ? ' · <span class="erro">anotação nova ainda não exportada</span>' : ' · <span class="ok">exportada</span>') : ''}${g.ots ? '' : ' · sem carimbo'}</div>`;
+        <div class="aviso">${new Date(c.inicio_utc).toLocaleString('pt-BR')} · ${c.modo === 'foto' ? '📷 foto' + (c.foto ? ' ' + c.foto.largura + '×' + c.foto.altura : '') : fmtTempo(c.duracao_s) + ' · ' + (c.modo === 'video' ? 'vídeo + áudio' : 'áudio')}${g.exportado ? (g.anot_pendente ? ' · <span class="erro">anotação nova ainda não exportada</span>' : ' · <span class="ok">exportada</span>') : ''}${g.ots ? '' : ' · sem carimbo'}</div>`;
       const an = (g.anotacoes || []); const ult = an[an.length - 1];
       const caixaAnot = document.createElement('div');
       const mostraAnot = () => {
@@ -272,7 +375,10 @@ async function desenhaBiblioteca() {
         else { const b = document.createElement('div'); b.className = 'anot vazia'; b.textContent = '📝 Toque aqui para anotar o contexto desta gravação'; b.onclick = () => ba.onclick(); caixaAnot.append(b); }
       };
       mostraAnot(); d.append(caixaAnot);
-      g.arquivos.forEach(a => { const m = document.createElement(a.papel === 'video' ? 'video' : 'audio'); m.controls = true; m.preload = 'none'; m.playsInline = true; m.src = URL.createObjectURL(a.blob); d.append(m); });
+      const fotos = g.arquivos.filter(a => a.papel === 'foto' || a.papel === 'foto_carimbada');
+      if (fotos.length) { const a = fotos.find(x => x.papel === 'foto_carimbada') || fotos[0]; const im = document.createElement('img'); im.loading = 'lazy'; im.alt = 'foto'; im.src = URL.createObjectURL(a.blob);
+        im.onclick = () => window.open(URL.createObjectURL(fotos[0].blob)); d.append(im); }
+      g.arquivos.filter(a => a.papel === 'audio' || a.papel === 'video').forEach(a => { const m = document.createElement(a.papel === 'video' ? 'video' : 'audio'); m.controls = true; m.preload = 'none'; m.playsInline = true; m.src = URL.createObjectURL(a.blob); d.append(m); });
       const acoes = document.createElement('div'); acoes.className = 'acoes';
       const ba = document.createElement('button'); ba.className = 'sec'; ba.textContent = ult && ult.texto ? '📝 Editar anotação' : '📝 Anotar';
       ba.onclick = () => {
